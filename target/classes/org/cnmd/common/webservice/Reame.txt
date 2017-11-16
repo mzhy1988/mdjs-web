@@ -1,0 +1,167 @@
+https://my.oschina.net/huangyong/blog/286439
+cxf有两种WebService发布方式  jax-ws 和simple 发布方式
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+4. 关于 CXF 提供的 WS 客户端
+
+方案一：静态代理客户端
+
+<!-- lang: java -->
+package demo.ws.soap_cxf;
+
+import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
+
+public class JaxWsClient {
+
+    public static void main(String[] args) {
+        JaxWsProxyFactoryBean factory = new JaxWsProxyFactoryBean();
+        factory.setAddress("http://localhost:8080/ws/soap/hello");
+        factory.setServiceClass(HelloService.class);
+
+        HelloService helloService = factory.create(HelloService.class);
+        String result = helloService.say("world");
+        System.out.println(result);
+    }
+}
+这种方案需要自行通过 WSDL 打客户端 jar 包，通过静态代理的方式来调用 WS。这种做法最为原始，下面的方案更有特色。
+
+方案二：动态代理客户端
+
+<!-- lang: java -->
+package demo.ws.soap_cxf;
+
+import org.apache.cxf.endpoint.Client;
+import org.apache.cxf.jaxws.endpoint.dynamic.JaxWsDynamicClientFactory;
+
+public class JaxWsDynamicClient {
+
+    public static void main(String[] args) {
+        JaxWsDynamicClientFactory factory = JaxWsDynamicClientFactory.newInstance();
+        Client client = factory.createClient("http://localhost:8080/ws/soap/hello?wsdl");
+
+        try {
+            Object[] results = client.invoke("say", "world");
+            System.out.println(results[0]);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+这种方案无需通过 WSDL 打客户端 jar 包，底层实际上通过 JDK 的动态代理特性完成的，CXF 实际上做了一个简单的封装。与 JDK 动态客户端不一样的是，此时无需使用 HelloService 接口，可以说是货真价实的 WS 动态客户端。
+
+方案三：通用动态代理客户端
+
+<!-- lang: java -->
+package demo.ws.soap_cxf;
+
+import org.apache.cxf.endpoint.Client;
+import org.apache.cxf.endpoint.dynamic.DynamicClientFactory;
+
+public class DynamicClient {
+
+    public static void main(String[] args) {
+        DynamicClientFactory factory = DynamicClientFactory.newInstance();
+        Client client = factory.createClient("http://localhost:8080/ws/soap/hello?wsdl");
+
+        try {
+            Object[] results = client.invoke("say", "world");
+            System.out.println(results[0]);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+这种方案与“方案三”类似，但不同的是，它不仅用于调用 JAX-WS 方式发布的 WS，也用于使用 simple 方式发布的 WS，更加智能了。
+
+方案四：基于 CXF simple 方式的客户端
+
+<!-- lang: java -->
+package demo.ws.soap_cxf;
+
+import org.apache.cxf.frontend.ClientProxyFactoryBean;
+
+public class SimpleClient {
+
+    public static void main(String[] args) {
+        ClientProxyFactoryBean factory = new ClientProxyFactoryBean();
+        factory.setAddress("http://localhost:8080/ws/soap/hello");
+        factory.setServiceClass(HelloService.class);
+        HelloService helloService = factory.create(HelloService.class);
+        String result = helloService.say("world");
+        System.out.println(result);
+    }
+}
+这种方式仅用于调用 simple 方式发布的 WS，不能调用 JAX-WS 方式发布的 WS，这是需要注意的。
+
+方案五：基于 Spring 的客户端
+
+方法一：使用 JaxWsProxyFactoryBean
+
+<!-- lang: xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
+
+    <bean id="factoryBean" class="org.apache.cxf.jaxws.JaxWsProxyFactoryBean">
+        <property name="serviceClass" value="demo.ws.soap_spring_cxf.HelloService"/>
+        <property name="address" value="http://localhost:8080/ws/soap/hello"/>
+    </bean>
+
+    <bean id="helloService" factory-bean="factoryBean" factory-method="create"/>
+
+</beans>
+方法二：使用 jaxws:client（推荐）
+
+<!-- lang: xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:jaxws="http://cxf.apache.org/jaxws"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+       http://cxf.apache.org/jaxws
+       http://cxf.apache.org/schemas/jaxws.xsd">
+
+    <jaxws:client id="helloService"
+                  serviceClass="demo.ws.soap_spring_cxf.HelloService"
+                  address="http://localhost:8080/ws/soap/hello"/>
+
+</beans>
+客户端代码：
+
+<!-- lang: java -->
+package demo.ws.soap_spring_cxf;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class Client {
+
+    public static void main(String[] args) {
+        ApplicationContext context = new ClassPathXmlApplicationContext("spring-client.xml");
+
+        HelloService helloService = context.getBean("helloService", HelloService.class);
+        String result = helloService.say("world");
+        System.out.println(result);
+    }
+}
+谈不上那种方案更加优秀，建议根据您的实际场景选择最为合适的方案。
